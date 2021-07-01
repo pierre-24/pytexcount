@@ -43,3 +43,9 @@ class PrintTreeStructure(parser.NodeVisitor):
     def visit_escapingsequence(self, node: parser.EscapingSequence, depth):
         PrintTreeStructure.indent(depth)
         print('+ Escaping sequence ({})::'.format(node.to_escape))
+
+    def visit_mathenvironment(self, node: parser.MathEnvironment, depth):
+        PrintTreeStructure.indent(depth)
+        print('+ MathEnvironment ({})::'.format('$$' if node.double else '$'))
+        for child in node.children:
+            self.visit(child, depth + 1)

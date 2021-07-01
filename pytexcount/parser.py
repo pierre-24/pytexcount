@@ -14,6 +14,7 @@ class TokenType(Enum):
     NL = 'NLW'
     EOS = '\0',
     CHAR = 'CHR'
+    DOLLAR = '$'
 
 
 SYMBOL_TR = {
@@ -23,6 +24,7 @@ SYMBOL_TR = {
     '[': TokenType.LSBRACE,
     ']': TokenType.RSBRACE,
     '%': TokenType.PERCENT,
+    '$': TokenType.DOLLAR,
     ' ': TokenType.SPACE,
     '\t': TokenType.SPACE,
     '\n': TokenType.NL
@@ -124,6 +126,15 @@ class EscapingSequence(ParserNode):
         self.to_escape = to_escape
 
 
+class MathEnvironment(NodeWithChildren):
+    """Math ``$x$`` env
+    """
+
+    def __init__(self, children: List[ParserNode], double: bool = False):
+        super().__init__(children)
+        self.double = double
+
+
 class ParserSyntaxError(Exception):
     pass
 
@@ -163,18 +174,43 @@ class Parser:
     def parse(self) -> TeXDocument:
         return self.tex_document()
 
-    def tex_document(self) -> TeXDocument:
-        """Get a document"""
+    def _get_children(
+            self,
+            in_env: str = None,
+            in_math: bool = False,
+            in_argument: TokenType = None
+    ) -> List[ParserNode]:
+        """Get children, but handle all specific parent environment
+        """
 
-        children: List[Union[Text, Macro, Environment, EscapingSequence]] = []
+        children = []
 
         while self.current_token.type != TokenType.EOS:
             if self.current_token.type == TokenType.PERCENT:
                 self.comment()
             elif self.current_token.type == TokenType.BACKSLASH:
-                children.append(self.escape_macro_or_env())
+                child = self.escape_macro_or_env()
+                children.append(child)
+
+                # if end, check if it is not the end of the environment
+                if in_env is not None and self._is_env_end(child, in_env):
+                    break
+            elif self.current_token.type == TokenType.DOLLAR:
+                if not in_math:
+                    children.append(self.math_environment())
+                else:  # if in math, it means the end
+                    break
             else:
-                children.append(self.text())
+                children.append(self.text(extra_skip=in_argument))
+                if in_argument is not None and self.current_token.type == in_argument:
+                    break
+
+        return children
+
+    def tex_document(self) -> TeXDocument:
+        """Get a document"""
+
+        children = self._get_children()
 
         self.eat(TokenType.EOS)
         return TeXDocument(children)
@@ -215,40 +251,36 @@ class Parser:
         arguments = self.arguments()
         return Macro(name, arguments)
 
+    @staticmethod
+    def _get_env_name_or_fail(arguments: List[Argument]):
+        if len(arguments) == 0:
+            raise ParserSyntaxError('empty environment command')
+
+        env_name_node = arguments[0]
+        if len(env_name_node.children) != 1:
+            raise ParserSyntaxError('environment name is {}'.format(env_name_node.children))
+        if type(env_name_node.children[0]) is not Text:
+            raise ParserSyntaxError(
+                'expected Text for environment name, got {}'.format(type(env_name_node.children[0])))
+
+        return env_name_node.children[0].text.strip()
+
+    @staticmethod
+    def _is_env_end(node: ParserNode, env_name: str) -> bool:
+        return type(node) is Macro and node.name == 'end' and Parser._get_env_name_or_fail(node.arguments) == env_name
+
     def _environment(self) -> Environment:
         """One has ``\\begin``... Now the rest."""
 
-        def get_env_name_or_fail(arguments: List[Argument]):
-            if len(arguments) == 0:
-                raise ParserSyntaxError('empty environment command, got {}'.format(self.current_token))
-
-            env_name_node = arguments[0]
-            if len(env_name_node.children) != 1:
-                raise ParserSyntaxError('environment name is {}'.format(env_name_node.children))
-            if type(env_name_node.children[0]) is not Text:
-                raise ParserSyntaxError(
-                    'expected Text for environment name, got {}'.format(type(env_name_node.children[0])))
-
-            return env_name_node.children[0].text.strip()
-
         env_args = self.arguments()
-        env_name = get_env_name_or_fail(env_args)
+        env_name = self._get_env_name_or_fail(env_args)
         env_args = env_args[1:]
-        children = []
+        children = self._get_children(in_env=env_name)
 
-        while self.current_token.type != TokenType.EOS:
-            if self.current_token.type == TokenType.PERCENT:
-                self.comment()
-            elif self.current_token.type == TokenType.BACKSLASH:
-                child = self.escape_macro_or_env()
-                if type(child) is Macro and child.name == 'end' and get_env_name_or_fail(child.arguments) == env_name:
-                    return Environment(env_name, env_args, children)
-                else:
-                    children.append(child)
-            else:
-                children.append(self.text())
+        if len(children) == 0 or not self._is_env_end(children[-1], env_name):
+            raise Exception('EOS while in envinonment {}'.format(env_name))
 
-        raise ParserSyntaxError('EOS while in environment {}!'.format(env_name))
+        return Environment(env_name, env_args, children[:-1])
 
     def arguments(self) -> List[Argument]:
         """Get the arguments, either optional (``[optarg]``) or not (``{arg}``)
@@ -274,14 +306,7 @@ class Parser:
             TokenType.LCBRACE: TokenType.RCBRACE}[self.current_token.type]
         self.next()
 
-        children = []
-        while self.current_token.type not in [TokenType.EOS, opposite]:
-            if self.current_token.type == TokenType.PERCENT:
-                self.comment()
-            elif self.current_token.type == TokenType.BACKSLASH:
-                children.append(self.escape_macro_or_env())
-            else:
-                children.append(self.text(extra_skip=opposite))
+        children = self._get_children(in_argument=opposite)
 
         self.eat(opposite)
         return Argument(children, optional)
@@ -299,8 +324,7 @@ class Parser:
                 TokenType.RCBRACE: TokenType.LCBRACE}[extra_skip]
 
         text = ''
-        while self.current_token.type not in [TokenType.BACKSLASH, TokenType.EOS]:
-
+        while self.current_token.type not in [TokenType.BACKSLASH, TokenType.EOS, TokenType.DOLLAR]:
             if self.current_token.type == TokenType.PERCENT:
                 self.comment()
             elif self.current_token.type == opposite:
@@ -314,6 +338,21 @@ class Parser:
             self.next()
 
         return Text(text)
+
+    def math_environment(self) -> MathEnvironment:
+        self.eat(TokenType.DOLLAR)
+        double = False
+        if self.current_token.type == TokenType.DOLLAR:
+            double = True
+            self.eat(TokenType.DOLLAR)
+
+        children = self._get_children(in_math=True)
+
+        self.eat(TokenType.DOLLAR)
+        if double:
+            self.eat(TokenType.DOLLAR)
+
+        return MathEnvironment(children, double=double)
 
 
 class NodeVisitor(object):

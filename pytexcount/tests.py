@@ -25,7 +25,22 @@ class LexerTestCase(unittest.TestCase):
 
 class ParserTestCase(unittest.TestCase):
 
-    def test_parser_simple(self):
-        text = """\\begin{test}content\\end{test}"""
+    def test_parser_text(self):
+        text = """xy"""
+        tree = Parser(text).parse()
+        PrintTreeStructure()(tree)
+
+    def test_parser_macro(self):
+        text = """x \\a[b]{c}"""
+        tree = Parser(text).parse()
+        PrintTreeStructure()(tree)
+
+    def test_parser_env(self):
+        text = """x \\begin{test}content\\end{test}"""
+        tree = Parser(text).parse()
+        PrintTreeStructure()(tree)
+
+    def test_parser_math(self):
+        text = """x $a$"""
         tree = Parser(text).parse()
         PrintTreeStructure()(tree)
