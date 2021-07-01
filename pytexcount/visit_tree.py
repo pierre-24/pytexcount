@@ -1,7 +1,21 @@
 from pytexcount import parser
 
 
-class PrintTreeStructure(parser.NodeVisitor):
+class NodeVisitor(object):
+    """Implementation of the visitor pattern.
+    Expect ``visit_[type](node)`` functions, where ``[type]`` is the type of the node, **lowercased**.
+    """
+
+    def visit(self, node, *args, **kwargs):
+        method_name = 'visit_' + type(node).__name__.lower()
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node, *args, **kwargs)
+
+    def generic_visit(self, node, *args, **kwargs):
+        raise Exception('No visit_{} method'.format(type(node).__name__.lower()))
+
+
+class PrintTreeStructure(NodeVisitor):
     def __call__(self, node: parser.ParserNode):
         self.visit(node, depth=0)
 
@@ -47,5 +61,11 @@ class PrintTreeStructure(parser.NodeVisitor):
     def visit_mathenvironment(self, node: parser.MathEnvironment, depth):
         PrintTreeStructure.indent(depth)
         print('+ MathEnvironment ({})::'.format('$$' if node.double else '$'))
+        for child in node.children:
+            self.visit(child, depth + 1)
+
+    def visit_enclosed(self, node: parser.Enclosed, depth):
+        PrintTreeStructure.indent(depth)
+        print('+ Enclosing ({})::'.format(node.opening))
         for child in node.children:
             self.visit(child, depth + 1)

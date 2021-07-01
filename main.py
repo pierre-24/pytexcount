@@ -2,7 +2,7 @@ import sys
 import os
 
 from pytexcount.parser import Parser
-from pytexcount.print_tree import PrintTreeStructure
+from pytexcount.visit_tree import PrintTreeStructure
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:

@@ -1,7 +1,7 @@
 import unittest
 
 from pytexcount.parser import Lexer, Token as T, TokenType as TT, Parser
-from pytexcount.print_tree import PrintTreeStructure
+from pytexcount.visit_tree import PrintTreeStructure
 
 
 class LexerTestCase(unittest.TestCase):
@@ -27,6 +27,16 @@ class ParserTestCase(unittest.TestCase):
 
     def test_parser_text(self):
         text = """xy"""
+        tree = Parser(text).parse()
+        PrintTreeStructure()(tree)
+
+    def test_parser_text_with_comment(self):
+        text = """x %a"""
+        tree = Parser(text).parse()
+        PrintTreeStructure()(tree)
+
+    def test_parser_enclosed(self):
+        text = """x [a] y"""
         tree = Parser(text).parse()
         PrintTreeStructure()(tree)
 
