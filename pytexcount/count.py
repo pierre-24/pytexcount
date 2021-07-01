@@ -39,7 +39,7 @@ class WordCounter(NodeVisitor):
     def visit_enclosed(self, node: parser.Enclosed):
         return sum(self.visit(arg) for arg in node.children)
 
-    def visit_escapesequence(self, node):
+    def visit_escapingsequence(self, node):
         return 0
 
     def visit_text(self, node: parser.Text):

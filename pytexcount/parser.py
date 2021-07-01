@@ -198,6 +198,8 @@ class Parser:
 
     @staticmethod
     def is_valid__for_env(macro: Macro, name: str = 'begin') -> bool:
+        if type(macro) is not Macro:
+            return False
         if macro.name != name:
             return False
         if len(macro.arguments) != 1:
