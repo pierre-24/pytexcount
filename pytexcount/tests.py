@@ -1,7 +1,6 @@
 import unittest
 
 import pytexcount.parser as P
-from pytexcount.parser import Lexer, Token as T, TokenType as TT, Parser
 from pytexcount.visit_tree import PrintTreeStructure
 
 
@@ -9,17 +8,17 @@ class LexerTestCase(unittest.TestCase):
 
     def test_lexer_base(self):
         expected = [
-            T(TT.CHAR, 'a'),
-            T(TT.SPACE, ' '),
-            T(TT.BACKSLASH, '\\'),
-            T(TT.CHAR, 't'),
-            T(TT.LCBRACE, '{'),
-            T(TT.CHAR, 'x'),
-            T(TT.RCBRACE, '}'),
-            T(TT.EOS, '\0')
+            P.Token(P.TokenType.CHAR, 'a'),
+            P.Token(P.TokenType.SPACE, ' '),
+            P.Token(P.TokenType.BACKSLASH, '\\'),
+            P.Token(P.TokenType.CHAR, 't'),
+            P.Token(P.TokenType.LCBRACE, '{'),
+            P.Token(P.TokenType.CHAR, 'x'),
+            P.Token(P.TokenType.RCBRACE, '}'),
+            P.Token(P.TokenType.EOS, '\0')
         ]
 
-        for i, token in enumerate(Lexer('a \\t{x}').tokenize()):
+        for i, token in enumerate(P.Lexer('a \\t{x}').tokenize()):
             self.assertEqual(token.type, expected[i].type)
             self.assertEqual(token.value, expected[i].value)
 
@@ -28,7 +27,7 @@ class ParserTestCase(unittest.TestCase):
 
     def test_parser_text(self):
         text = "xy"
-        tree = Parser(text).parse()
+        tree = P.Parser(text).parse()
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -36,7 +35,7 @@ class ParserTestCase(unittest.TestCase):
 
     def test_parser_text_with_comment(self):
         text = "xy %a"
-        tree = Parser(text).parse()
+        tree = P.Parser(text).parse()
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -48,15 +47,15 @@ class ParserTestCase(unittest.TestCase):
         aft_text = 'y'
 
         text = "{}[{}]{}".format(bef_text, enclosed_text, aft_text)
-        tree = Parser(text).parse()
+        tree = P.Parser(text).parse()
 
         self.assertEqual(len(tree.children), 3)
         self.assertIsInstance(tree.children[0], P.Text)
         self.assertEqual(tree.children[0].text, bef_text)
 
         self.assertIsInstance(tree.children[1], P.Enclosed)
-        self.assertEqual(tree.children[1].opening, TT.LSBRACE)
-        self.assertEqual(tree.children[1].closing(), TT.RSBRACE)
+        self.assertEqual(tree.children[1].opening, P.TokenType.LSBRACE)
+        self.assertEqual(tree.children[1].closing(), P.TokenType.RSBRACE)
         self.assertEqual(tree.children[1].children[0].text, enclosed_text)
 
         self.assertIsInstance(tree.children[2], P.Text)
@@ -67,7 +66,7 @@ class ParserTestCase(unittest.TestCase):
         optarg = 'x'
         mandarg = 'y'
         text = "\\{}[{}]{{{}}}".format(name, optarg, mandarg)
-        tree = Parser(text).parse()
+        tree = P.Parser(text).parse()
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Macro)
@@ -84,7 +83,7 @@ class ParserTestCase(unittest.TestCase):
         textpart = 'a'
         mathpart = 'x'
         text = "{}${}$".format(textpart, mathpart)
-        tree = Parser(text).parse()
+        tree = P.Parser(text).parse()
 
         self.assertEqual(len(tree.children), 2)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -95,6 +94,39 @@ class ParserTestCase(unittest.TestCase):
         self.assertEqual(mathenv.children[0].text, mathpart)
 
     def test_parser_env(self):
-        text = """x \\begin{test}content\\end{test}"""
-        tree = Parser(text).parse()
-        PrintTreeStructure()(tree)
+        name = 'test'
+        content = 'tmp'
+        text = "\\begin{{{name}}}{ctn}\\end{{{name}}}".format(name=name, ctn=content)
+        tree = P.Parser(text).parse()
+
+        self.assertEqual(len(tree.children), 1)
+        self.assertIsInstance(tree.children[0], P.Environment)
+        self.assertEqual(tree.children[0].name, name)
+
+        self.assertEqual(tree.children[0].children[0].text, content)
+
+    def test_parser_env_in_env(self):
+        """Environment in environment (with the same name)
+        """
+
+        text = """a\\begin{test}b\\begin{test}c\\end{test}d\\end{test}e"""
+        tree = P.Parser(text).parse()
+
+        self.assertEqual(len(tree.children), 3)
+        self.assertIsInstance(tree.children[0], P.Text)
+        self.assertEqual(tree.children[0].text, 'a')
+        self.assertIsInstance(tree.children[1], P.Environment)
+        self.assertIsInstance(tree.children[2], P.Text)
+        self.assertEqual(tree.children[2].text, 'e')
+
+        env: P.Environment = tree.children[1]
+        self.assertEqual(env.name, 'test')
+
+        self.assertEqual(len(env.children), 3)
+        self.assertIsInstance(env.children[0], P.Text)
+        self.assertEqual(env.children[0].text, 'b')
+        self.assertIsInstance(env.children[1], P.Environment)
+        self.assertEqual(env.children[1].children[0].text, 'c')
+        self.assertIsInstance(env.children[2], P.Text)
+        self.assertEqual(env.children[2].text, 'd')
+

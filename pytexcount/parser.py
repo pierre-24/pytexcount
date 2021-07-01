@@ -196,9 +196,26 @@ class Parser:
     def parse(self) -> TeXDocument:
         return self.tex_document()
 
-    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed]:
+    @staticmethod
+    def is_valid__for_env(macro: Macro, name: str = 'begin') -> bool:
+        if macro.name != name:
+            return False
+        if len(macro.arguments) != 1:
+            return False
+        if len(macro.arguments[0].children) != 1:
+            return False
+        if type(macro.arguments[0].children[0]) is not Text:
+            return False
+
+        return True
+
+    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed, EscapingSequence]:
         if self.current_token.type == TokenType.BACKSLASH:
-            return self.escape_or_macro()
+            macro = self.escape_or_macro()
+            if Parser.is_valid__for_env(macro):
+                return self.environment(macro)
+            else:
+                return macro
         elif self.current_token.type == TokenType.DOLLAR:
             return self.math_environment()
         elif self.current_token.type in [TokenType.LCBRACE, TokenType.LSBRACE]:
@@ -310,4 +327,19 @@ class Parser:
 
         return MathDollarEnv(children, double=double)
 
+    def environment(self, macro_begin: Macro) -> Environment:
+        def get_name(m: Macro):
+            return m.arguments[0].children[0].text.strip()
 
+        name = get_name(macro_begin)  # assume that `is_valid_for_env` is True
+        arguments = macro_begin.arguments[1:]
+
+        children = []
+        while self.current_token.type != TokenType.EOS:
+            child = self.child()
+            if type(child) is Macro and Parser.is_valid__for_env(child, 'end') and get_name(child) == name:
+                return Environment(name, arguments, children)
+            else:
+                children.append(child)
+
+        raise ParserSyntaxError('EOS while parsing environment {}'.format(name))
