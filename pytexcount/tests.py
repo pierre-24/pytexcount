@@ -76,7 +76,9 @@ class ParserTestCase(unittest.TestCase):
         self.assertEqual(macro.name, name)
         self.assertEqual(len(macro.arguments), 2)
         self.assertEqual(macro.arguments[0].children[0].text, optarg)
+        self.assertTrue(macro.arguments[0].optional)
         self.assertEqual(macro.arguments[1].children[0].text, mandarg)
+        self.assertFalse(macro.arguments[1].optional)
 
     def test_parser_math(self):
         textpart = 'a'

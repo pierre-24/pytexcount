@@ -259,7 +259,7 @@ class Parser:
         if self.current_token.type not in [TokenType.LCBRACE, TokenType.LSBRACE]:
             raise ParserSyntaxError('not an enclosed, got {}'.format(self.current_token))
 
-        opening = TokenType.LSBRACE
+        opening = self.current_token.type
         opposite = {
             TokenType.LSBRACE: TokenType.RSBRACE,
             TokenType.LCBRACE: TokenType.RCBRACE}[self.current_token.type]
