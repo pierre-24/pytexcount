@@ -1,6 +1,3 @@
-"""Count the number of words in a TeX document, but cleverly
-"""
-
 import argparse
 import sys
 
@@ -13,6 +10,7 @@ INCLUDE_MACRO = [
     # text
     'textbf',
     'textit',
+    'texttt',
     'emph',
 
     # floats
@@ -35,7 +33,10 @@ EXCLUDE_ENV = [
 
 
 def make_list(inp):
-    return inp.split(',')
+    if inp == '':
+        return []
+    else:
+        return inp.split(',')
 
 
 def get_arguments_parser():
@@ -50,9 +51,12 @@ def get_arguments_parser():
         help='TeX source')
 
     parser.add_argument(
-        '-i', '--include-macro', type=make_list, help='colon-separated list of macro to include', default='')
+        '-i', '--include-macros', type=make_list, help='colon-separated list of macros to include', default='')
     parser.add_argument(
         '-e', '--exclude-env', type=make_list, help='colon-separated list of environments to exclude', default='')
+
+    parser.add_argument(
+        '-s', '--show', help='Show the list of exluced environments and included macros', action='store_true')
 
     return parser
 
@@ -60,12 +64,20 @@ def get_arguments_parser():
 def main():
     args = get_arguments_parser().parse_args()
 
+    excluded_env = EXCLUDE_ENV + args.exclude_env
+    included_macros = INCLUDE_MACRO + args.include_macros
+
+    if args.show:
+        print('Excluded env:', ', '.join(excluded_env))
+        print('Included macros:', ', '.join(included_macros))
+        return
+
     try:
         tree = Parser(args.infile.read()).parse()
     except ParserSyntaxError as e:
         raise Exception('error while parsing: {}'.format(e))
 
-    print(WordCounter(EXCLUDE_ENV + args.exclude_env, INCLUDE_MACRO + args.include_macro)(tree))
+    print(WordCounter(excluded_env, included_macros)(tree))
 
 
 if __name__ == '__main__':

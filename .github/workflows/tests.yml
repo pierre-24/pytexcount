@@ -27,9 +27,9 @@ jobs:
     - name: Install dependencies
       run: |
         make init
-    - name: Lint with flake8
+    - name: Lint
       run: |
         make lint
-    - name: Test with pytest
+    - name: Test
       run: |
         make test
