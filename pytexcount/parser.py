@@ -1,0 +1,330 @@
+from typing import List, Iterator, Union
+from enum import Enum, unique
+
+
+@unique
+class TokenType(Enum):
+    BACKSLASH = '\\'
+    LCBRACE = '{'
+    RCBRACE = '}'
+    LSBRACE = '['
+    RSBRACE = ']',
+    PERCENT = '%',
+    SPACE = 'SPC',
+    NL = 'NLW'
+    EOS = '\0',
+    CHAR = 'CHR'
+
+
+SYMBOL_TR = {
+    '\\': TokenType.BACKSLASH,
+    '{': TokenType.LCBRACE,
+    '}': TokenType.RCBRACE,
+    '[': TokenType.LSBRACE,
+    ']': TokenType.RSBRACE,
+    '%': TokenType.PERCENT,
+    ' ': TokenType.SPACE,
+    '\t': TokenType.SPACE,
+    '\n': TokenType.NL
+}
+
+
+class Token:
+    def __init__(self, typ_: TokenType, value: str, position: int = -1):
+        self.type = typ_
+        self.value = value
+        self.position = position
+
+    def __repr__(self):
+        return 'Token({},{}{})'.format(
+            self.type,
+            self.value,
+            '' if self.position < 0 else ', {}'.format(self.position)
+        )
+
+
+class Lexer:
+    def __init__(self, inp):
+        self.input = inp
+        self.position = -1
+        self.current_char = None
+
+        self.next()
+
+    def next(self):
+        """Go to next token
+        """
+
+        self.position += 1
+
+        if self.position >= len(self.input):
+            self.current_char = '\0'
+        else:
+            self.current_char = self.input[self.position]
+
+    def tokenize(self) -> Iterator[Token]:
+        while self.current_char != '\0':
+            if self.current_char in SYMBOL_TR:
+                yield Token(SYMBOL_TR[self.current_char], self.current_char, self.position)
+            else:
+                yield Token(TokenType.CHAR, self.current_char, self.position)
+            self.next()
+
+        yield Token(TokenType.EOS, '\0', self.position)
+
+
+class ParserNode:
+    pass
+
+
+class NodeWithChildren(ParserNode):
+    def __init__(self, children: List[ParserNode]):
+        self.children = children
+
+
+class TeXDocument(NodeWithChildren):
+    """First node type"""
+    pass
+
+
+class Text(ParserNode):
+    """Pure text node, with no Environement/Macro in it"""
+
+    def __init__(self, text: str):
+        self.text = text
+
+
+class Argument(NodeWithChildren):
+    """Argument of a macro or an environment, may be optional or not"""
+    def __init__(self, children: List[ParserNode], optional: bool = False):
+        super().__init__(children)
+
+        self.optional = optional
+
+
+class Environment(NodeWithChildren):
+    """Environment, defined as ``\\begin{name}[optarg1]{arg1} (...) \\end{name}``"""
+    def __init__(self, name: str, arguments: List[Argument], children: List[ParserNode]):
+        super().__init__(children)
+
+        self.name = name
+        self.arguments = arguments
+
+
+class Macro(ParserNode):
+    """Macro, defined as ``\\name[optarg1]{arg1}{arg2}``"""
+    def __init__(self, name: str, arguments: List[Argument]):
+        self.name = name
+        self.arguments = arguments
+
+
+class EscapingSequence(ParserNode):
+    """One letter escaping sequence of the form ``\\x``, where ``x`` is a special character"""
+    def __init__(self, to_escape: str):
+        self.to_escape = to_escape
+
+
+class ParserSyntaxError(Exception):
+    pass
+
+
+class Parser:
+    def __init__(self, inp: str):
+        self.lexer = Lexer(inp)
+        self.tokenizer = self.lexer.tokenize()
+        self.current_token: Token = None
+
+        self.next()
+
+    def next(self):
+        """Get next token"""
+
+        try:
+            self.current_token = next(self.tokenizer)
+        except StopIteration:
+            self.current_token = Token(TokenType.EOS, '\0')
+
+    def eat(self, typ: TokenType):
+        if self.current_token.type == typ:
+            self.next()
+        else:
+            raise ParserSyntaxError('expected {}, got {}'.format(typ, self.current_token))
+
+    def skip_empty(self):
+        """Skip spaces, newlines and comments
+        """
+
+        while self.current_token.type in [TokenType.SPACE, TokenType.PERCENT, TokenType.NL]:
+            if self.current_token.type == TokenType.PERCENT:
+                self.comment()
+            else:
+                self.next()
+
+    def parse(self) -> TeXDocument:
+        return self.tex_document()
+
+    def tex_document(self) -> TeXDocument:
+        """Get a document"""
+
+        children: List[Union[Text, Macro, Environment, EscapingSequence]] = []
+
+        while self.current_token.type != TokenType.EOS:
+            if self.current_token.type == TokenType.PERCENT:
+                self.comment()
+            elif self.current_token.type == TokenType.BACKSLASH:
+                children.append(self.escape_macro_or_env())
+            else:
+                children.append(self.text())
+
+        self.eat(TokenType.EOS)
+        return TeXDocument(children)
+
+    def comment(self):
+        """Skip comment
+        """
+
+        self.eat(TokenType.PERCENT)
+        while self.current_token.type not in [TokenType.NL, TokenType.EOS]:
+            self.next()
+
+    def escape_macro_or_env(self) -> Union[Macro, Environment, EscapingSequence]:
+        """After a BACKSLASH could be either an escaping sequence,
+        a macro or an environment (depending if its ``\\begin`` or not)
+        """
+
+        self.eat(TokenType.BACKSLASH)
+
+        name = ''
+
+        while self.current_token.type == TokenType.CHAR:
+            name += self.current_token.value
+            self.next()
+
+        if name == '':  # that's escaping
+            val = self.current_token.value
+            self.next()
+            return EscapingSequence(val)
+        elif name == 'begin':  # environment spotted
+            return self._environment()
+        else:  # macro, then
+            return self._macro(name)
+
+    def _macro(self, name: str) -> Macro:
+        """One already has the name, arguments are missing!"""
+
+        arguments = self.arguments()
+        return Macro(name, arguments)
+
+    def _environment(self) -> Environment:
+        """One has ``\\begin``... Now the rest."""
+
+        def get_env_name_or_fail(arguments: List[Argument]):
+            if len(arguments) == 0:
+                raise ParserSyntaxError('empty environment command, got {}'.format(self.current_token))
+
+            env_name_node = arguments[0]
+            if len(env_name_node.children) != 1:
+                raise ParserSyntaxError('environment name is {}'.format(env_name_node.children))
+            if type(env_name_node.children[0]) is not Text:
+                raise ParserSyntaxError(
+                    'expected Text for environment name, got {}'.format(type(env_name_node.children[0])))
+
+            return env_name_node.children[0].text.strip()
+
+        env_args = self.arguments()
+        env_name = get_env_name_or_fail(env_args)
+        env_args = env_args[1:]
+        children = []
+
+        while self.current_token.type != TokenType.EOS:
+            if self.current_token.type == TokenType.PERCENT:
+                self.comment()
+            elif self.current_token.type == TokenType.BACKSLASH:
+                child = self.escape_macro_or_env()
+                if type(child) is Macro and child.name == 'end' and get_env_name_or_fail(child.arguments) == env_name:
+                    return Environment(env_name, env_args, children)
+                else:
+                    children.append(child)
+            else:
+                children.append(self.text())
+
+        raise ParserSyntaxError('EOS while in environment {}!'.format(env_name))
+
+    def arguments(self) -> List[Argument]:
+        """Get the arguments, either optional (``[optarg]``) or not (``{arg}``)
+        """
+
+        self.skip_empty()
+        arguments = []
+        while self.current_token.type in [TokenType.LCBRACE, TokenType.LSBRACE]:
+            arguments.append(self.argument())
+            self.skip_empty()
+
+        return arguments
+
+    def argument(self) -> Argument:
+        """Get argument"""
+
+        if self.current_token.type not in [TokenType.LCBRACE, TokenType.LSBRACE]:
+            raise ParserSyntaxError('not an argument, got {}'.format(self.current_token))
+
+        optional = self.current_token.type == TokenType.LSBRACE
+        opposite = {
+            TokenType.LSBRACE: TokenType.RSBRACE,
+            TokenType.LCBRACE: TokenType.RCBRACE}[self.current_token.type]
+        self.next()
+
+        children = []
+        while self.current_token.type not in [TokenType.EOS, opposite]:
+            if self.current_token.type == TokenType.PERCENT:
+                self.comment()
+            elif self.current_token.type == TokenType.BACKSLASH:
+                children.append(self.escape_macro_or_env())
+            else:
+                children.append(self.text(extra_skip=opposite))
+
+        self.eat(opposite)
+        return Argument(children, optional)
+
+    def text(self, extra_skip: TokenType = None) -> Text:
+        """Pure text, without env or macro.
+        """
+
+        opposite = None
+        depth = 0 if extra_skip is None else 1
+
+        if extra_skip:
+            opposite = {
+                TokenType.RSBRACE: TokenType.LSBRACE,
+                TokenType.RCBRACE: TokenType.LCBRACE}[extra_skip]
+
+        text = ''
+        while self.current_token.type not in [TokenType.BACKSLASH, TokenType.EOS]:
+
+            if self.current_token.type == TokenType.PERCENT:
+                self.comment()
+            elif self.current_token.type == opposite:
+                depth += 1
+            elif self.current_token.type == extra_skip:
+                depth -= 1
+                if depth == 0:
+                    break
+
+            text += self.current_token.value
+            self.next()
+
+        return Text(text)
+
+
+class NodeVisitor(object):
+    """Implementation of the visitor pattern.
+    Expect ``visit_[type](node)`` functions, where ``[type]`` is the type of the node, **lowercased**.
+    """
+
+    def visit(self, node, *args, **kwargs):
+        method_name = 'visit_' + type(node).__name__.lower()
+        visitor = getattr(self, method_name, self.generic_visit)
+        return visitor(node, *args, **kwargs)
+
+    def generic_visit(self, node, *args, **kwargs):
+        raise Exception('No visit_{} method'.format(type(node).__name__.lower()))
