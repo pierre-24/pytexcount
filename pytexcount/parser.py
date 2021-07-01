@@ -233,9 +233,8 @@ class Parser:
         self.eat(TokenType.EOS)
         return TeXDocument(children)
 
-    def escape_or_macro(self) -> Union[Macro, Environment, EscapingSequence]:
-        """After a BACKSLASH could be either an escaping sequence,
-        a macro or an environment (depending if its ``\\begin`` or not)
+    def escape_or_macro(self) -> Union[Macro, EscapingSequence]:
+        """After a BACKSLASH could be either an escaping sequence or a macro
         """
 
         self.eat(TokenType.BACKSLASH)
@@ -243,7 +242,7 @@ class Parser:
         name = ''
 
         while self.current_token.type == TokenType.CHAR:
-            if not self.current_token.value.isalnum():  # only alphanumeric stuffs in macro names
+            if not self.current_token.value.isalnum() and self.current_token.value not in ['*', '@']:
                 break
             name += self.current_token.value
             self.next()
@@ -331,7 +330,7 @@ class Parser:
         def get_name(m: Macro):
             return m.arguments[0].children[0].text.strip()
 
-        name = get_name(macro_begin)  # assume that `is_valid_for_env` is True
+        name = get_name(macro_begin)  # assume that `is_valid_for_env` is True!
         arguments = macro_begin.arguments[1:]
 
         children = []

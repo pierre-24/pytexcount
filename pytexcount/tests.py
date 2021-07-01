@@ -1,7 +1,7 @@
 import unittest
 
 import pytexcount.parser as P
-from pytexcount.visit_tree import PrintTreeStructure
+from pytexcount.count import WordCounter
 
 
 class LexerTestCase(unittest.TestCase):
@@ -25,9 +25,12 @@ class LexerTestCase(unittest.TestCase):
 
 class ParserTestCase(unittest.TestCase):
 
+    def parse(self, text):
+        return P.Parser(text).parse()
+
     def test_parser_text(self):
         text = "xy"
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -35,7 +38,7 @@ class ParserTestCase(unittest.TestCase):
 
     def test_parser_text_with_comment(self):
         text = "xy %a"
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -47,7 +50,7 @@ class ParserTestCase(unittest.TestCase):
         aft_text = 'y'
 
         text = "{}[{}]{}".format(bef_text, enclosed_text, aft_text)
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 3)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -66,7 +69,7 @@ class ParserTestCase(unittest.TestCase):
         optarg = 'x'
         mandarg = 'y'
         text = "\\{}[{}]{{{}}}".format(name, optarg, mandarg)
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Macro)
@@ -79,11 +82,22 @@ class ParserTestCase(unittest.TestCase):
         self.assertEqual(macro.arguments[1].children[0].text, mandarg)
         self.assertFalse(macro.arguments[1].optional)
 
+    def test_macro_name(self):
+        def mc(t) -> P.Macro:
+            return P.Parser(t).escape_or_macro()
+
+        self.assertEqual(mc('\\test').name, 'test')
+        self.assertEqual(mc('\\test2').name, 'test2')
+        self.assertEqual(mc('\\test*').name, 'test*')
+        self.assertEqual(mc('\\x@test').name, 'x@test')
+        self.assertEqual(mc('\\test_2').name, 'test')
+        self.assertEqual(mc('\\test^2').name, 'test')
+
     def test_parser_math(self):
         textpart = 'a'
         mathpart = 'x'
         text = "{}${}$".format(textpart, mathpart)
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 2)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -97,7 +111,7 @@ class ParserTestCase(unittest.TestCase):
         name = 'test'
         content = 'tmp'
         text = "\\begin{{{name}}}{ctn}\\end{{{name}}}".format(name=name, ctn=content)
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
         self.assertIsInstance(tree.children[0], P.Environment)
@@ -110,7 +124,7 @@ class ParserTestCase(unittest.TestCase):
         """
 
         text = """a\\begin{test}b\\begin{test}c\\end{test}d\\end{test}e"""
-        tree = P.Parser(text).parse()
+        tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 3)
         self.assertIsInstance(tree.children[0], P.Text)
@@ -130,3 +144,24 @@ class ParserTestCase(unittest.TestCase):
         self.assertIsInstance(env.children[2], P.Text)
         self.assertEqual(env.children[2].text, 'd')
 
+
+class WordCountTestCase(unittest.TestCase):
+
+    def count(self, text, exclude_env=None, include_macro=None):
+        tree = P.Parser(text).parse()
+        return WordCounter(exclude_env, include_macro)(tree)
+
+    def test_text(self):
+        self.assertEqual(self.count('this is a test'), 4)
+        self.assertEqual(self.count('this is the 2nd test'), 5)
+
+    def test_enclosed(self):
+        self.assertEqual(self.count('a [b] c'), 3)
+
+    def test_macro(self):
+        self.assertEqual(self.count('\\test{x}{y}'), 0)
+        self.assertEqual(self.count('\\test{x}{y}', include_macro=['test']), 2)
+
+    def test_environment(self):
+        self.assertEqual(self.count('\\begin{test}two words\\end{test}'), 2)
+        self.assertEqual(self.count('\\begin{test}two words\\end{test}', exclude_env=['test']), 0)
