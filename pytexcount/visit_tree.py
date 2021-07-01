@@ -58,7 +58,7 @@ class PrintTreeStructure(NodeVisitor):
         PrintTreeStructure.indent(depth)
         print('+ Escaping sequence ({})::'.format(node.to_escape))
 
-    def visit_mathenvironment(self, node: parser.MathEnvironment, depth):
+    def visit_mathdollarenv(self, node: parser.MathDollarEnv, depth):
         PrintTreeStructure.indent(depth)
         print('+ MathEnvironment ({})::'.format('$$' if node.double else '$'))
         for child in node.children:

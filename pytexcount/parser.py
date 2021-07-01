@@ -141,7 +141,7 @@ class EscapingSequence(ParserNode):
         self.to_escape = to_escape
 
 
-class MathEnvironment(NodeWithChildren):
+class MathDollarEnv(NodeWithChildren):
     """Math ``$x$`` env
     """
 
@@ -196,7 +196,7 @@ class Parser:
     def parse(self) -> TeXDocument:
         return self.tex_document()
 
-    def child(self) -> Union[Text, Macro, MathEnvironment, Enclosed]:
+    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed]:
         if self.current_token.type == TokenType.BACKSLASH:
             return self.escape_or_macro()
         elif self.current_token.type == TokenType.DOLLAR:
@@ -290,7 +290,7 @@ class Parser:
 
         return Text(text)
 
-    def math_environment(self) -> MathEnvironment:
+    def math_environment(self) -> MathDollarEnv:
         self.eat(TokenType.DOLLAR)
         double = False
         if self.current_token.type == TokenType.DOLLAR:
@@ -308,6 +308,6 @@ class Parser:
         if double:
             self.eat(TokenType.DOLLAR)
 
-        return MathEnvironment(children, double=double)
+        return MathDollarEnv(children, double=double)
 
 
