@@ -174,9 +174,8 @@ class Parser:
     def parse(self) -> TeXDocument:
         return self.tex_document()
 
-    def _get_children(
+    def children(
             self,
-            in_env: str = None,
             in_math: bool = False,
             in_argument: TokenType = None
     ) -> List[ParserNode]:
@@ -189,12 +188,7 @@ class Parser:
             if self.current_token.type == TokenType.PERCENT:
                 self.comment()
             elif self.current_token.type == TokenType.BACKSLASH:
-                child = self.escape_macro_or_env()
-                children.append(child)
-
-                # if end, check if it is not the end of the environment
-                if in_env is not None and self._is_env_end(child, in_env):
-                    break
+                children.append(self.escape_or_macro())
             elif self.current_token.type == TokenType.DOLLAR:
                 if not in_math:
                     children.append(self.math_environment())
@@ -210,7 +204,7 @@ class Parser:
     def tex_document(self) -> TeXDocument:
         """Get a document"""
 
-        children = self._get_children()
+        children = self.children()
 
         self.eat(TokenType.EOS)
         return TeXDocument(children)
@@ -223,7 +217,7 @@ class Parser:
         while self.current_token.type not in [TokenType.NL, TokenType.EOS]:
             self.next()
 
-    def escape_macro_or_env(self) -> Union[Macro, Environment, EscapingSequence]:
+    def escape_or_macro(self) -> Union[Macro, Environment, EscapingSequence]:
         """After a BACKSLASH could be either an escaping sequence,
         a macro or an environment (depending if its ``\\begin`` or not)
         """
@@ -233,6 +227,8 @@ class Parser:
         name = ''
 
         while self.current_token.type == TokenType.CHAR:
+            if not self.current_token.value.isalnum():  # only alphanumeric stuffs in macro names
+                break
             name += self.current_token.value
             self.next()
 
@@ -240,47 +236,9 @@ class Parser:
             val = self.current_token.value
             self.next()
             return EscapingSequence(val)
-        elif name == 'begin':  # environment spotted
-            return self._environment()
         else:  # macro, then
-            return self._macro(name)
-
-    def _macro(self, name: str) -> Macro:
-        """One already has the name, arguments are missing!"""
-
-        arguments = self.arguments()
-        return Macro(name, arguments)
-
-    @staticmethod
-    def _get_env_name_or_fail(arguments: List[Argument]):
-        if len(arguments) == 0:
-            raise ParserSyntaxError('empty environment command')
-
-        env_name_node = arguments[0]
-        if len(env_name_node.children) != 1:
-            raise ParserSyntaxError('environment name is {}'.format(env_name_node.children))
-        if type(env_name_node.children[0]) is not Text:
-            raise ParserSyntaxError(
-                'expected Text for environment name, got {}'.format(type(env_name_node.children[0])))
-
-        return env_name_node.children[0].text.strip()
-
-    @staticmethod
-    def _is_env_end(node: ParserNode, env_name: str) -> bool:
-        return type(node) is Macro and node.name == 'end' and Parser._get_env_name_or_fail(node.arguments) == env_name
-
-    def _environment(self) -> Environment:
-        """One has ``\\begin``... Now the rest."""
-
-        env_args = self.arguments()
-        env_name = self._get_env_name_or_fail(env_args)
-        env_args = env_args[1:]
-        children = self._get_children(in_env=env_name)
-
-        if len(children) == 0 or not self._is_env_end(children[-1], env_name):
-            raise Exception('EOS while in envinonment {}'.format(env_name))
-
-        return Environment(env_name, env_args, children[:-1])
+            arguments = self.arguments()
+            return Macro(name, arguments)
 
     def arguments(self) -> List[Argument]:
         """Get the arguments, either optional (``[optarg]``) or not (``{arg}``)
@@ -306,7 +264,7 @@ class Parser:
             TokenType.LCBRACE: TokenType.RCBRACE}[self.current_token.type]
         self.next()
 
-        children = self._get_children(in_argument=opposite)
+        children = self.children(in_argument=opposite)
 
         self.eat(opposite)
         return Argument(children, optional)
@@ -346,7 +304,7 @@ class Parser:
             double = True
             self.eat(TokenType.DOLLAR)
 
-        children = self._get_children(in_math=True)
+        children = self.children(in_math=True)
 
         self.eat(TokenType.DOLLAR)
         if double:
