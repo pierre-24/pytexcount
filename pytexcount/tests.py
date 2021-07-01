@@ -29,7 +29,7 @@ class ParserTestCase(unittest.TestCase):
         return P.Parser(text).parse()
 
     def test_parser_text(self):
-        text = "xy"
+        text = 'xy'
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
@@ -37,7 +37,7 @@ class ParserTestCase(unittest.TestCase):
         self.assertEqual(tree.children[0].text, text)
 
     def test_parser_text_with_comment(self):
-        text = "xy %a"
+        text = 'xy %a'
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
@@ -49,7 +49,7 @@ class ParserTestCase(unittest.TestCase):
         enclosed_text = 'a'
         aft_text = 'y'
 
-        text = "{}[{}]{}".format(bef_text, enclosed_text, aft_text)
+        text = '{}[{}]{}'.format(bef_text, enclosed_text, aft_text)
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 3)
@@ -68,7 +68,7 @@ class ParserTestCase(unittest.TestCase):
         name = 'test'
         optarg = 'x'
         mandarg = 'y'
-        text = "\\{}[{}]{{{}}}".format(name, optarg, mandarg)
+        text = '\\{}[{}]{{{}}}'.format(name, optarg, mandarg)
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
@@ -96,7 +96,7 @@ class ParserTestCase(unittest.TestCase):
     def test_parser_math(self):
         textpart = 'a'
         mathpart = 'x'
-        text = "{}${}$".format(textpart, mathpart)
+        text = '{}${}$'.format(textpart, mathpart)
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 2)
@@ -110,7 +110,7 @@ class ParserTestCase(unittest.TestCase):
     def test_parser_env(self):
         name = 'test'
         content = 'tmp'
-        text = "\\begin{{{name}}}{ctn}\\end{{{name}}}".format(name=name, ctn=content)
+        text = '\\begin{{{name}}}{ctn}\\end{{{name}}}'.format(name=name, ctn=content)
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 1)
@@ -123,7 +123,7 @@ class ParserTestCase(unittest.TestCase):
         """Environment in environment (with the same name)
         """
 
-        text = """a\\begin{test}b\\begin{test}c\\end{test}d\\end{test}e"""
+        text = 'a\\begin{test}b\\begin{test}c\\end{test}d\\end{test}e'
         tree = self.parse(text)
 
         self.assertEqual(len(tree.children), 3)

@@ -4,14 +4,9 @@
 import argparse
 import sys
 
+import pytexcount
 from pytexcount.parser import Parser, ParserSyntaxError
 from pytexcount.count import WordCounter
-
-__version__ = '0.1'
-__author__ = 'Pierre Beaujean'
-__maintainer__ = 'Pierre Beaujean'
-__email__ = 'pierre.beaujean@unamur.be'
-__status__ = 'Development'
 
 
 INCLUDE_MACRO = [
@@ -44,8 +39,8 @@ def make_list(inp):
 
 
 def get_arguments_parser():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
+    parser = argparse.ArgumentParser(description=pytexcount.__doc__)
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + pytexcount.__version__)
 
     parser.add_argument(
         'infile',
