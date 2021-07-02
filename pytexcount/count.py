@@ -33,7 +33,7 @@ class WordCounter(NodeVisitor):
         return sum(self.visit(arg) for arg in node.children)
 
     def visit_mathdollarenv(self, node: parser.MathDollarEnv):
-        if not node.double:
+        if not node.double:  # only counts inline equations
             return sum(self.visit(arg) for arg in node.children)
         else:
             return 0
@@ -62,3 +62,6 @@ class WordCounter(NodeVisitor):
                     nwords += 1
 
             return nwords
+
+    def visit_unaryoperator(self, node):
+        return 0

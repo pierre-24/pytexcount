@@ -8,11 +8,13 @@ class TokenType(Enum):
     LCBRACE = '{'
     RCBRACE = '}'
     LSBRACE = '['
-    RSBRACE = ']',
-    PERCENT = '%',
-    SPACE = 'SPC',
+    RSBRACE = ']'
+    PERCENT = '%'
+    UP = '^'
+    DOWN = '_'
+    SPACE = 'SPC'
     NL = 'NLW'
-    EOS = '\0',
+    EOS = '\0'
     CHAR = 'CHR'
     DOLLAR = '$'
 
@@ -26,6 +28,8 @@ SYMBOL_TR = {
     '%': TokenType.PERCENT,
     '$': TokenType.DOLLAR,
     ' ': TokenType.SPACE,
+    '^': TokenType.UP,
+    '_': TokenType.DOWN,
     '\t': TokenType.SPACE,
     '\n': TokenType.NL
 }
@@ -99,7 +103,7 @@ class Text(ParserNode):
 class Enclosed(NodeWithChildren):
     """Node enclosed with either [R|C]BRACES"""
 
-    def __init__(self, children: List[ParserNode], opening: TokenType):
+    def __init__(self, opening: TokenType, children: List[ParserNode]):
         super().__init__(children)
 
         if opening not in [TokenType.LCBRACE, TokenType.LSBRACE]:
@@ -115,8 +119,20 @@ class Argument(Enclosed):
     """Argument of a macro or an environment, may be optional or not"""
 
     def __init__(self, children: List[ParserNode], optional: bool = False):
-        super().__init__(children, opening=TokenType.LSBRACE if optional else TokenType.LCBRACE)
+        super().__init__(opening=TokenType.LSBRACE if optional else TokenType.LCBRACE, children=children)
         self.optional = optional
+
+
+class UnaryOperator(NodeWithChildren):
+    """``_`` and ``^``"""
+
+    def __init__(self, op: TokenType, children: List[ParserNode]):
+        super().__init__(children)
+
+        if op not in [TokenType.DOWN, TokenType.UP]:
+            raise ParserSyntaxError('incorrect TokenType for UnaryOperator, got {}'.format(op))
+
+        self.operator = op
 
 
 class Environment(NodeWithChildren):
@@ -211,7 +227,7 @@ class Parser:
 
         return True
 
-    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed, EscapingSequence]:
+    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed, EscapingSequence, UnaryOperator, Environment]:
         if self.current_token.type == TokenType.BACKSLASH:
             macro = self.escape_or_macro()
             if Parser.is_valid__for_env(macro):
@@ -222,6 +238,8 @@ class Parser:
             return self.math_environment()
         elif self.current_token.type in [TokenType.LCBRACE, TokenType.LSBRACE]:
             return self.enclosed()
+        elif self.current_token.type in [TokenType.UP, TokenType.DOWN]:
+            return self.unary_operator()
         else:
             return self.text()
 
@@ -292,7 +310,7 @@ class Parser:
             children.append(self.child())
 
         self.eat(opposite)
-        return Enclosed(children, opening)
+        return Enclosed(opening, children)
 
     def text(self) -> Text:
         """Pure text, without env or macro.
@@ -344,3 +362,30 @@ class Parser:
                 children.append(child)
 
         raise ParserSyntaxError('EOS while parsing environment {}'.format(name))
+
+    def unary_operator(self) -> UnaryOperator:
+        """Get unary operator"""
+
+        if self.current_token.type not in [TokenType.UP, TokenType.DOWN]:
+            raise ParserSyntaxError('not an unary, got {}'.format(self.current_token))
+
+        operator = self.current_token.type
+        self.next()
+
+        children = []
+        if self.current_token.type == TokenType.LCBRACE:
+            self.next()
+
+            while self.current_token.type != TokenType.EOS:
+                if self.current_token.type == TokenType.RCBRACE:
+                    break
+
+                children.append(self.child())
+
+            self.eat(TokenType.RCBRACE)
+
+        elif self.current_token.type == TokenType.CHAR:  # normally, it can only be CHAR?!?
+            children.append(Text(self.current_token.value))
+            self.next()
+
+        return UnaryOperator(operator, children)

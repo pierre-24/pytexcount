@@ -69,3 +69,9 @@ class PrintTreeStructure(NodeVisitor):
         print('+ Enclosing ({})::'.format(node.opening))
         for child in node.children:
             self.visit(child, depth + 1)
+
+    def visit_unaryoperator(self, node: parser.UnaryOperator, depth):
+        PrintTreeStructure.indent(depth)
+        print('+ Unary operator ({})::'.format(node.operator))
+        for child in node.children:
+            self.visit(child, depth + 1)
