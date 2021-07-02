@@ -2,7 +2,6 @@ import unittest
 
 import pytexcount.parser as P
 from pytexcount.count import WordCounter
-from pytexcount.visit_tree import PrintTreeStructure
 
 
 class LexerTestCase(unittest.TestCase):
@@ -146,8 +145,27 @@ class ParserTestCase(unittest.TestCase):
         self.assertEqual(env.children[2].text, 'd')
 
     def test_unary(self):
-        tree = self.parse('\\alpha_{xy} z')
-        PrintTreeStructure()(tree)
+        content = 'xy'
+        text = '\\alpha_{{{}}}'.format(content)
+        tree = self.parse(text)
+
+        self.assertEqual(len(tree.children), 2)
+        self.assertIsInstance(tree.children[0], P.Macro)
+        self.assertIsInstance(tree.children[1], P.UnaryOperator)
+        self.assertEqual(tree.children[1].children[0].text, content)
+
+    def test_separator(self):
+        bef = 'a'
+        aft = 'b'
+        text = '{}&{}'.format(bef, aft)
+        tree = self.parse(text)
+
+        self.assertEqual(len(tree.children), 3)
+        self.assertIsInstance(tree.children[0], P.Text)
+        self.assertEqual(tree.children[0].text, bef)
+        self.assertIsInstance(tree.children[1], P.Separator)
+        self.assertIsInstance(tree.children[2], P.Text)
+        self.assertEqual(tree.children[2].text, aft)
 
 
 class WordCountTestCase(unittest.TestCase):

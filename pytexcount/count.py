@@ -65,3 +65,6 @@ class WordCounter(NodeVisitor):
 
     def visit_unaryoperator(self, node):
         return 0
+
+    def visit_separator(self, node):
+        return 0

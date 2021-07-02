@@ -12,6 +12,7 @@ class TokenType(Enum):
     PERCENT = '%'
     UP = '^'
     DOWN = '_'
+    AMPERSAND = '&'
     SPACE = 'SPC'
     NL = 'NLW'
     EOS = '\0'
@@ -30,6 +31,7 @@ SYMBOL_TR = {
     ' ': TokenType.SPACE,
     '^': TokenType.UP,
     '_': TokenType.DOWN,
+    '&': TokenType.AMPERSAND,
     '\t': TokenType.SPACE,
     '\n': TokenType.NL
 }
@@ -157,6 +159,11 @@ class EscapingSequence(ParserNode):
         self.to_escape = to_escape
 
 
+class Separator(ParserNode):
+    """Just &"""
+    pass
+
+
 class MathDollarEnv(NodeWithChildren):
     """Math ``$x$`` env
     """
@@ -227,7 +234,8 @@ class Parser:
 
         return True
 
-    def child(self) -> Union[Text, Macro, MathDollarEnv, Enclosed, EscapingSequence, UnaryOperator, Environment]:
+    def child(self) \
+            -> Union[Text, Macro, MathDollarEnv, Enclosed, EscapingSequence, UnaryOperator, Environment, Separator]:
         if self.current_token.type == TokenType.BACKSLASH:
             macro = self.escape_or_macro()
             if Parser.is_valid__for_env(macro):
@@ -240,6 +248,9 @@ class Parser:
             return self.enclosed()
         elif self.current_token.type in [TokenType.UP, TokenType.DOWN]:
             return self.unary_operator()
+        elif self.current_token.type == TokenType.AMPERSAND:
+            self.next()
+            return Separator()
         else:
             return self.text()
 

@@ -75,3 +75,7 @@ class PrintTreeStructure(NodeVisitor):
         print('+ Unary operator ({})::'.format(node.operator))
         for child in node.children:
             self.visit(child, depth + 1)
+
+    def visit_separator(self, node, depth):
+        PrintTreeStructure.indent(depth)
+        print('+ Separator')
