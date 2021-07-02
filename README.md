@@ -21,17 +21,28 @@ $ pytexcount test.tex
 
 The program parses the TeX document to extract an AST (in order to count only when necessary).
 
-By default, the count included all environment (except a few, like equations)
-but exclude all macro (except a few, like title levels and formating).
+By default, the count 
++ includes the text in all environment (except a few, like equations),
++ exclude all macro arguments (except a few, like title levels and formatting),
++ consider a few macros (such as `\LaTeX`) as a word.
+
 You can have an overview with the `-s` option:
 
 ```text
 $  pytexcount -s
-Excluded env: equation, equation*, align, align*
-Included macros: textbf, textit, texttt, emph, caption, section, subsection, subsubsection, paragraph, subparagraph
+Excluded environments:
+  equation, equation*, align, align*
+Include args of:
+  textbf, textit, texttt, emph, caption, 
+  section, subsection, subsubsection, paragraph, subparagraph
+Words:
+  TeX, LaTeX
 ```
 
-You can add macro to the list with the `-i` option (using a colon-separated list), and exclude additional environment with the `-e` option.
+You can 
++ add macro to the list with the `-i` option (using a colon-separated list),
++ exclude additional environment with the `-e` option,
++ add some macro that will be counted as a word with the `-w` option.
 
 For example, to include `\ref{}` and `\cite{}` but exclude the `abstract` environment,
 
@@ -40,9 +51,11 @@ $ pytexcount test.tex -i ref,cite -e abstract
 43
 ```
 
+As an alternative, you can use the [TeXCount web interface/Perl script](https://app.uio.no/ifi/texcount/).
+
 ## Contributions
 
-Contribution, either with [issues](https://github.com/pierre-24/pytexcount/issues) or [pull requests](https://github.com/pierre-24/pytexcount/pulls) are welcomed.
+Contributions, either with [issues](https://github.com/pierre-24/pytexcount/issues) or [pull requests](https://github.com/pierre-24/pytexcount/pulls) are welcomed.
 
 If you can to contribute, this is the usual deal: 
 start by [forking](https://guides.github.com/activities/forking/), then clone your fork
@@ -57,7 +70,7 @@ Then setup... And you are good to go :)
 ```bash
 python -m venv venv # a virtualenv is always a good idea
 source venv/bin/activate
-make init  # install what's needed for 
+make init  # install what's needed for dev
 ```
 
 Don't forget to work on a separate branch, and to run the linting and tests:

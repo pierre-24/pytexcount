@@ -5,9 +5,10 @@ from pytexcount.visit_tree import NodeVisitor
 
 
 class WordCounter(NodeVisitor):
-    def __init__(self, exclude_env: List[str], include_macro: List[str]):
+    def __init__(self, exclude_env: List[str], include_macro: List[str], macro_as_words: List[str]):
         self.exclude_env = frozenset(exclude_env if exclude_env is not None else [])
         self.include_macro = frozenset(include_macro if include_macro is not None else [])
+        self.macro_as_words = frozenset(macro_as_words if macro_as_words is not None else [])
 
     def __call__(self, node: parser.ParserNode):
         return self.visit(node)
@@ -16,10 +17,11 @@ class WordCounter(NodeVisitor):
         return sum(self.visit(child) for child in node.children)
 
     def visit_macro(self, node: parser.Macro):
+        base = 1 if node.name in self.macro_as_words else 0
         if node.name in self.include_macro:
-            return sum(self.visit(arg) for arg in node.arguments)
+            return sum(self.visit(arg) for arg in node.arguments) + base
 
-        return 0
+        return base
 
     def visit_environment(self, node: parser.Environment):
         if node.name not in self.exclude_env:

@@ -147,9 +147,9 @@ class ParserTestCase(unittest.TestCase):
 
 class WordCountTestCase(unittest.TestCase):
 
-    def count(self, text, exclude_env=None, include_macro=None):
+    def count(self, text, exclude_env=None, include_macro=None, macro_as_word=None):
         tree = P.Parser(text).parse()
-        return WordCounter(exclude_env, include_macro)(tree)
+        return WordCounter(exclude_env, include_macro, macro_as_word)(tree)
 
     def test_text(self):
         self.assertEqual(self.count('this is a test'), 4)
@@ -161,6 +161,10 @@ class WordCountTestCase(unittest.TestCase):
     def test_macro(self):
         self.assertEqual(self.count('\\test{x}{y}'), 0)
         self.assertEqual(self.count('\\test{x}{y}', include_macro=['test']), 2)
+
+    def test_macro_as_word(self):
+        self.assertEqual(self.count('a \\test'), 1)
+        self.assertEqual(self.count('a \\test', macro_as_word=['test']), 2)
 
     def test_environment(self):
         self.assertEqual(self.count('\\begin{test}two words\\end{test}'), 2)
